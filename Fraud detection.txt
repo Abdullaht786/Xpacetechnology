@@ -1,0 +1,107 @@
+pip install pandas scikit-learn imbalanced-learn matplotlib seaborn
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from imblearn.over_sampling import SMOTE
+
+# Load the dataset
+df = pd.read_csv('fraud_detection_data.csv')
+
+# Display the first few rows
+print(df.head())
+
+# Check for missing values
+print(df.isnull().sum())
+
+# Analyze the distribution of the target variable
+sns.countplot(x='Is Fraudulent', data=df)
+plt.title('Distribution of Fraudulent vs Legitimate Transactions')
+plt.show()
+
+# Encode categorical variables
+df['Is Fraudulent'] = df['Is Fraudulent'].map({'Yes': 1, 'No': 0})
+
+# One-hot encoding for categorical variables
+df = pd.get_dummies(df, columns=['Merchant', 'Location', 'Transaction Type', 'Card Type'], drop_first=True)
+
+# Check for class imbalance
+print(df['Is Fraudulent'].value_counts())
+
+# Balance the dataset using SMOTE
+X = df.drop(['Is Fraudulent', 'Transaction ID', 'Customer ID', 'Transaction Date'], axis=1)
+y = df['Is Fraudulent']
+
+smote = SMOTE(random_state=42)
+X_resampled, y_resampled = smote.fit_resample(X, y)
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
+
+# Create new features
+df['Transaction Amount'] = df['Transaction Amount'].astype(float)
+
+# Example: Create a feature for transaction amount log transformation
+X_train['Log Transaction Amount'] = np.log(X_train['Transaction Amount'] + 1)
+X_test['Log Transaction Amount'] = np.log(X_test['Transaction Amount'] + 1)
+
+# Drop the original Transaction Amount if needed
+X_train.drop('Transaction Amount', axis=1, inplace=True)
+X_test.drop('Transaction Amount', axis=1, inplace=True)
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+
+# Initialize the model
+model = RandomForestClassifier(random_state=42)
+
+# Fit the model
+model.fit(X_train, y_train)
+
+# Predictions
+y_pred = model.predict(X_test)
+y_pred_proba = model.predict_proba(X_test)[:, 1]
+
+# Evaluate the model
+print(classification_report(y_test, y_pred))
+print("AUC-ROC Score:", roc_auc_score(y_test, y_pred_proba))
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred)
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix')
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.show()
+
+# This part is conceptual and would require further elaboration based on the system architecture.
+# A simple design could involve:
+# 1. Real-time data ingestion from transaction processing system.
+# 2. Preprocessing and feature extraction similar to the above steps.
+# 3. Model prediction using the trained model.
+# 4. Alerting system for flagged transactions.
+
+# Pseudocode for real-time prediction
+def predict_fraud(transaction_data):
+    # Preprocess transaction_data similar to training data
+    # Make predictions
+    prediction = model.predict(transaction_data)
+    return prediction
+
+# Generate visualizations and reports
+# This can be done using libraries like Matplotlib, Seaborn, or even exporting to PDF/HTML.
+# You can also use Jupyter Notebook to document your findings interactively.
+
+# Example: Feature importance
+importances = model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+# Plot feature importances
+plt.figure()
+plt.title("Feature importances")
+plt.bar(range(X_train.shape[1]), importances[indices], align="center")
+plt.xticks(range(X_train.shape[1]), X_train.columns[indices], rotation=90)
+plt.xlim([-1, X_train.shape[1]])
+plt.show()

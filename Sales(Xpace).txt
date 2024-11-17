@@ -1,0 +1,80 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Step 1: Data Cleaning
+# Load the dataset
+sales_data = pd.read_csv('sales_data.csv')
+
+# Check for missing values
+print(sales_data.isnull().sum())
+
+# Fill missing values or drop rows
+sales_data.fillna(method='ffill', inplace=True)  # Forward fill for simplicity
+
+# Convert 'Order Date' column to datetime
+sales_data['Order Date'] = pd.to_datetime(sales_data['Order Date'])
+
+# Remove duplicates
+sales_data.drop_duplicates(inplace=True)
+
+# Step 2: Customer Segmentation
+# Create a snapshot of the latest date in the dataset for recency calculation
+latest_date = sales_data['Order Date'].max()
+
+# Calculate RFM metrics
+rfm = sales_data.groupby('Customer ID').agg({
+    'Order Date': lambda x: (latest_date - x.max()).days,  # Recency
+    'Order ID': 'count',  # Frequency
+    'Total Amount': 'sum'  # Monetary
+}).rename(columns={'Order Date': 'Recency', 'Order ID': 'Frequency', 'Total Amount': 'Monetary'})
+
+# Define segments based on RFM values
+rfm['R_Score'] = pd.qcut(rfm['Recency'], 5, ['1', '2', '3', '4', '5'])
+rfm['F_Score'] = pd.qcut(rfm['Frequency'], 5, ['5', '4', '3', '2', '1'])
+rfm['M_Score'] = pd.qcut(rfm['Monetary'], 5, ['5', '4', '3', '2', '1'])
+
+# Combine scores to create a segment label
+rfm['RFM_Segment'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
+
+# Step 3: Sales Trend Analysis
+# Extract year and month from 'Order Date'
+sales_data['Year'] = sales_data['Order Date'].dt.year
+sales_data['Month'] = sales_data['Order Date'].dt.month
+
+# Monthly sales
+monthly_sales = sales_data.groupby(['Year', 'Month'])['Total Amount'].sum().reset_index()
+
+# Yearly sales
+yearly_sales = sales_data.groupby('Year')['Total Amount'].sum().reset_index()
+
+# Product category performance
+category_performance = sales_data.groupby('Category')['Total Amount'].sum().reset_index().sort_values(by='Total Amount', ascending=False)
+
+# Regional sales analysis
+regional_sales = sales_data.groupby('Region')['Total Amount'].sum().reset_index().sort_values(by='Total Amount', ascending=False)
+
+# Step 4: Data Visualization
+# Line chart for sales over time
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=monthly_sales, x='Month', y='Total Amount', hue='Year')
+plt.title('Monthly Sales Trend')
+plt.xlabel('Month')
+plt.ylabel('Total Amount')
+plt.legend(title='Year')
+plt.show()
+
+# Bar chart for top product categories
+plt.figure(figsize=(12, 6))
+sns.barplot(data=category_performance, x='Category', y='Total Amount')
+plt.title('Sales by Product Category')
+plt.xlabel('Category')
+plt.ylabel('Total Amount')
+plt.xticks(rotation=45)
+plt.show()
+
+# Pie chart for regional sales distribution
+plt.figure(figsize=(8, 8))
+plt.pie(regional_sales['Total Amount'], labels=regional_sales['Region'], autopct='%1.1f%%')
+plt.title('Regional Sales Distribution')
+plt.show()
